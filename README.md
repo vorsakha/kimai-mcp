@@ -1,7 +1,7 @@
 # kimai-mcp
 
 A small [MCP](https://modelcontextprotocol.io) server for **personal** time tracking on a
-[Kimai](https://www.kimai.org) instance (by default `https://kimai.coderockr.com`). It lets an agent log work,
+[Kimai](https://www.kimai.org) instance. It lets an agent log work,
 correct entries, run timers and review hours. It runs over stdio, launched by your MCP host, and talks to Kimai's
 REST API over HTTPS. It has no database, web UI or admin/invoicing features.
 
@@ -21,7 +21,7 @@ The entry point is `dist/index.js` (also exposed as the `kimai-mcp` bin).
 | Variable          | Required | Purpose                                                                                                        |
 | ----------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
 | `KIMAI_API_TOKEN` | yes      | Personal API token (Kimai → your profile → API Access). Sent as `Authorization: Bearer …`.                     |
-| `KIMAI_BASE_URL`  | no       | Instance URL. Defaults to `https://kimai.coderockr.com`. Must be `https://` (http only for localhost).         |
+| `KIMAI_BASE_URL`  | yes      | Your Kimai instance URL. Must be `https://` (http only for localhost).                                         |
 | `KIMAI_TIMEZONE`  | no       | IANA zone fallback, used only if Kimai does not report the account zone. Must match the account if both exist. |
 
 `.env.example` lists these variables with placeholders. Keep real values in `.env` (git-ignored, like every
@@ -50,7 +50,7 @@ gets copied into the client's JSON (Claude Code / Claude Desktop style):
 Use absolute paths, because clients start servers from an unrelated working directory. Node exits with an error if
 the file is missing. Variables already set in the client's environment take precedence over the file.
 
-Alternatively, pass the variables directly with an `"env": { "KIMAI_API_TOKEN": "…" }` block in the same entry.
+Alternatively, pass both `KIMAI_BASE_URL` and `KIMAI_API_TOKEN` directly through an `"env"` block in the same entry.
 
 Stdout carries only MCP protocol messages; diagnostics go to stderr.
 
@@ -149,7 +149,7 @@ systemd-run --user --pipe --wait --collect --working-directory="$PWD" --setenv=P
 
 ## Verification status and known limits
 
-- **Live verification is read-only.** On 2026-10-26 the target instance (`https://kimai.coderockr.com`) reported
+- **Live verification is read-only.** On 2026-10-26 the configured instance reported
   **Kimai 2.70.1** and account time zone `America/Sao_Paulo`. With the compiled server and a regular account,
   authenticated reads succeeded for `get_context`, `list_projects`, `list_activities`, `list_timesheets` (date
   range and by ID, including project/activity names) and `summarize_time`. The same check showed that detail

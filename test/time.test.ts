@@ -27,18 +27,16 @@ test("wall-clock times resolve in the account zone, rejecting DST gaps and overl
   assert.throws(() => localToEpoch("2026-11-01T01:30:00", "America/New_York"), /ambiguous/);
 });
 
-test("config requires a token and refuses to send it over plain http to remote hosts", () => {
-  assert.throws(() => loadConfig({}), /KIMAI_API_TOKEN is not set/);
-  assert.throws(
-    () => loadConfig({ KIMAI_API_TOKEN: "t", KIMAI_BASE_URL: "http://kimai.example.com" }),
-    /must use https/,
-  );
-  assert.throws(
-    () => loadConfig({ KIMAI_API_TOKEN: "t", KIMAI_TIMEZONE: "Mars/Olympus" }),
-    /not a valid IANA time zone/,
-  );
+test("config requires credentials and an instance URL, and refuses plain http to remote hosts", () => {
+  const env = { KIMAI_API_TOKEN: "t", KIMAI_BASE_URL: "https://kimai.example.com" };
 
-  assert.equal(loadConfig({ KIMAI_API_TOKEN: "t" }).baseUrl, "https://kimai.coderockr.com");
+  assert.throws(() => loadConfig({}), /KIMAI_API_TOKEN is not set/);
+  assert.throws(() => loadConfig({ KIMAI_API_TOKEN: "t" }), /KIMAI_BASE_URL is not set/);
+  assert.throws(() => loadConfig({ ...env, KIMAI_BASE_URL: " " }), /KIMAI_BASE_URL is not set/);
+  assert.throws(() => loadConfig({ ...env, KIMAI_BASE_URL: "http://kimai.example.com" }), /must use https/);
+  assert.throws(() => loadConfig({ ...env, KIMAI_TIMEZONE: "Mars/Olympus" }), /not a valid IANA time zone/);
+
+  assert.equal(loadConfig({ ...env, KIMAI_BASE_URL: `${env.KIMAI_BASE_URL}/` }).baseUrl, env.KIMAI_BASE_URL);
   assert.equal(
     loadConfig({ KIMAI_API_TOKEN: "t", KIMAI_BASE_URL: "http://127.0.0.1:8080/" }).baseUrl,
     "http://127.0.0.1:8080",

@@ -1,6 +1,5 @@
 import { isValidTimeZone } from "./time.ts";
 
-const DEFAULT_BASE_URL = "https://kimai.coderockr.com";
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 export type Config = {
@@ -18,6 +17,12 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     );
   }
 
+  const baseUrl = env.KIMAI_BASE_URL?.trim();
+
+  if (!baseUrl) {
+    throw new Error("KIMAI_BASE_URL is not set. Pass your Kimai instance URL through the environment.");
+  }
+
   const timeZone = env.KIMAI_TIMEZONE?.trim() || undefined;
 
   if (timeZone && !isValidTimeZone(timeZone)) {
@@ -25,7 +30,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   }
 
   return {
-    baseUrl: parseBaseUrl(env.KIMAI_BASE_URL?.trim() || DEFAULT_BASE_URL),
+    baseUrl: parseBaseUrl(baseUrl),
     apiToken,
     timeZone,
   };
