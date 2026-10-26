@@ -23,7 +23,18 @@ const write = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 class ToolInputError extends Error {}
 
 export function createServer(client: KimaiClient, account: Account): McpServer {
-  const server = new McpServer({ name: "kimai-mcp", version: "0.1.0" });
+  const server = new McpServer(
+    { name: "kimai-mcp", version: "0.1.0" },
+    {
+      instructions: [
+        "Use get_context to resolve relative dates in the Kimai account's time zone.",
+        "Resolve project and activity names to IDs with list_projects and list_activities before writing entries.",
+        "Ask the user when a project, activity, date, or existing entry is ambiguous; do not guess.",
+        "Use summarize_time for totals; list_timesheets returns one page at a time.",
+        "After UNKNOWN OUTCOME, inspect list_timesheets or get_context before retrying: the write may have succeeded.",
+      ].join("\n"),
+    },
+  );
 
   server.registerTool(
     "get_context",
