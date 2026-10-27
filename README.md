@@ -58,8 +58,6 @@ You can also supply the environment variables directly through your MCP client.
 - Starting a timer at your instance's running-timer limit returns an error. Stop an existing timer first.
 - Editing times and billable status depends on your account's permissions and Kimai's tracking mode.
 
-Write tools have been tested offline but have not been exercised against a live instance.
-
 ## Development
 
 ```sh
