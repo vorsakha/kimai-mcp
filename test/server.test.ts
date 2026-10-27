@@ -11,7 +11,7 @@ type Recorded = { method: string; path: string; query: URLSearchParams; body: un
 type Route = (request: Recorded, response: ServerResponse) => void;
 
 const xProject = { id: 1, name: "Project X", customer: { id: 5, name: "Acme" } };
-const internal = { id: 2, name: "Internal", customer: { id: 6, name: "Coderockr" } };
+const internal = { id: 2, name: "Internal", customer: { id: 6, name: "Globex" } };
 const development = { id: 10, name: "Development" };
 const meeting = { id: 11, name: "Meeting" };
 
@@ -47,7 +47,7 @@ const entries = [
 
 const projectCatalog = [
   { id: 1, name: "Project X", customer: 5, parentTitle: "Acme", globalActivities: true },
-  { id: 2, name: "Internal", customer: 6, parentTitle: "Coderockr", globalActivities: false },
+  { id: 2, name: "Internal", customer: 6, parentTitle: "Globex", globalActivities: false },
 ];
 
 const activityCatalog = [
@@ -66,7 +66,7 @@ function json(response: ServerResponse, status: number, body: unknown, headers: 
 function baseRoutes(): Record<string, Route> {
   return {
     "GET /api/users/me": (_, res) =>
-      json(res, 200, { id: 7, username: "andrei", alias: "Andrei", timezone: "America/Sao_Paulo" }),
+      json(res, 200, { id: 7, username: "example", alias: "Example User", timezone: "America/Sao_Paulo" }),
     "GET /api/config/timesheet": (_, res) =>
       json(res, 200, {
         trackingMode: "default",

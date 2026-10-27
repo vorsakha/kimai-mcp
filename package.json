@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "MCP server for personal time tracking on a Kimai instance",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "kimai-mcp": "dist/index.js"
@@ -18,8 +18,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --test test/*.test.ts",
-    "format": "prettier --write src test README.md",
-    "format:check": "prettier --check src test README.md",
+    "format": "prettier --write src test \"*.md\" .github",
+    "format:check": "prettier --check src test \"*.md\" .github",
     "start": "node dist/index.js"
   },
   "repository": {
