@@ -5,8 +5,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { CallToolResultSchema } from "@modelcontextprotocol/sdk/types.js";
 
-// Runs the real server over stdio against a local stub of the Kimai API. Nothing here talks to a real Kimai.
-
 const TOKEN = "test-token-3f9a71c2";
 
 type Recorded = { method: string; path: string; query: URLSearchParams; body: unknown; auth: string | undefined };
@@ -39,7 +37,6 @@ function entry(
   };
 }
 
-// Five entries across the range: two days of finished work, one crossing midnight, one still running.
 const entries = [
   entry(1, "2026-10-19T09:00:00-0300", "2026-10-19T11:30:00-0300", 9000),
   entry(2, "2026-10-19T13:00:00-0300", "2026-10-19T14:00:00-0300", 3600, internal, meeting),
@@ -53,7 +50,6 @@ const projectCatalog = [
   { id: 2, name: "Internal", customer: 6, parentTitle: "Coderockr", globalActivities: false },
 ];
 
-// Returned unfiltered, as Kimai does when it cannot resolve a project filter.
 const activityCatalog = [
   { id: 10, name: "Development", project: null },
   { id: 11, name: "Meeting", project: 2, parentTitle: "Internal" },
@@ -80,12 +76,10 @@ function baseRoutes(): Record<string, Route> {
       }),
     "GET /api/timesheets/active": (_, res) => json(res, 200, [entries[4]]),
     "GET /api/timesheets/recent": (_, res) => json(res, 200, [entries[2]]),
-    // Like a regular account on the live instance: collections are readable, detail endpoints are 403.
     "GET /api/projects": (_, res) => json(res, 200, projectCatalog),
     "GET /api/activities": (_, res) => json(res, 200, activityCatalog),
     "GET /api/projects/1": (_, res) => json(res, 403, { code: 403, message: "Access denied." }),
     "GET /api/activities/10": (_, res) => json(res, 403, { code: 403, message: "Access denied." }),
-    // The stub pages by 2 regardless of the requested size, like a server with a smaller cap.
     "GET /api/timesheets": (req, res) => {
       const page = Number(req.query.get("page"));
       const items = entries.slice((page - 1) * 2, page * 2);
@@ -262,7 +256,6 @@ test("summarize_time totals every page by start day and keeps running entries ou
     [5],
   );
 
-  // A page set that does not add up to X-Total-Count must fail, never produce partial totals.
   routes["GET /api/timesheets"] = (req, res) => {
     const page = Number(req.query.get("page"));
     json(res, 200, entries.slice((page - 1) * 2, page * 2), { "X-Total-Count": "6", "X-Total-Pages": "3" });
@@ -273,7 +266,6 @@ test("summarize_time totals every page by start day and keeps running entries ou
   assert.equal(partial.isError, true);
   assert.match(partial.text, /expected 6 entries, received 5/);
 
-  // A finished entry without a duration must not count as zero in a "complete" total.
   routes["GET /api/timesheets"] = (_, res) =>
     json(res, 200, [{ ...entries[0], duration: null }], { "X-Total-Count": "1", "X-Total-Pages": "1" });
 
@@ -304,7 +296,6 @@ test("create_timesheet sends account-local times once and treats unreadable answ
     tags: ["backend", "review"],
   };
 
-  // Each of these may follow a committed write, so none may look like a definite failure or be retried.
   const unknownOutcomes: Record<string, Route> = {
     "dropped connection": (_, res) => res.socket?.destroy(),
     "non-JSON success": (_, res) => res.writeHead(200, { "Content-Type": "application/json" }).end("not-json"),
@@ -336,7 +327,6 @@ test("create_timesheet sends account-local times once and treats unreadable answ
     end: "2026-10-25T11:30:00",
   });
 
-  // A parsed validation answer proves nothing was saved: a definite, field-level error.
   routes["POST /api/timesheets"] = (_, res) =>
     json(res, 400, {
       code: 400,
@@ -365,7 +355,6 @@ test("activities are scoped through readable collections when detail endpoints a
   );
   assert.equal(sent("GET", "/api/projects")[0]?.query.get("ignoreDates"), "1");
 
-  // Internal disallows global activities; Kimai's unfiltered answer must not leak them or other projects' activities.
   const internalOnly = await callJson("list_activities", { project: 2 });
 
   assert.deepEqual(

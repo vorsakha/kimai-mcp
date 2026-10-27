@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-// Only the fields this server uses are declared; Zod strips everything else,
-// so unexpected or sensitive fields never reach tool output.
-
 const NamedRef = z.object({
   id: z.number(),
   name: z.string(),
@@ -26,7 +23,6 @@ export const TimesheetConfig = z.object({
   isAllowOverlapping: z.boolean(),
 });
 
-/** Project as returned by the project endpoints: customer is an ID, parentTitle its name. */
 export const Project = z.object({
   id: z.number(),
   name: z.string(),
@@ -35,7 +31,6 @@ export const Project = z.object({
   globalActivities: z.boolean().optional(),
 });
 
-/** Activity as returned by the activity endpoints: project is an ID (null for global activities). */
 export const Activity = z.object({
   id: z.number(),
   name: z.string(),
@@ -47,10 +42,6 @@ const ExpandedProject = NamedRef.extend({
   customer: NamedRef.nullish().catch(null),
 });
 
-/**
- * Timesheets come in two shapes: collections requested with full=true (and /active, /recent)
- * embed project and activity objects, while single-entity responses only carry their IDs.
- */
 export const Timesheet = z.object({
   id: z.number(),
   begin: z.string(),

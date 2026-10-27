@@ -92,7 +92,6 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
     },
     run(async ({ term, customer, limit }) => {
       const projects = await client.get("/projects", Project.array(), { term: term || undefined, customer });
-      // Kimai silently drops an unknown customer filter, so enforce it here as well.
       const matches = projects.filter((project) => customer === undefined || project.customer === customer);
 
       for (const project of projects) {
@@ -380,7 +379,6 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
   return server;
 }
 
-/** Wraps a handler so results become compact JSON text and every failure becomes a readable tool error. */
 function run<Args>(handler: (args: Args) => Promise<unknown>) {
   return async (args: Args): Promise<CallToolResult> => {
     try {
@@ -413,7 +411,6 @@ type EntryFieldsInput = {
   billable?: boolean | undefined;
 };
 
-/** Kimai form fields for the values that were given; absent keys stay untouched on PATCH. */
 function entryFields(input: EntryFieldsInput): Record<string, unknown> {
   const fields: Record<string, unknown> = {
     project: input.project,
@@ -426,7 +423,6 @@ function entryFields(input: EntryFieldsInput): Record<string, unknown> {
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
 }
 
-/** Normalizes begin/end and checks them against the account time zone before anything is sent. */
 async function validateTimes(account: Account, begin: string | undefined, end: string | undefined) {
   const times: { begin?: string; end?: string } = {};
 

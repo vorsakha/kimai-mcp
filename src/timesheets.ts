@@ -15,7 +15,6 @@ export type TimesheetFilters = {
   term?: string | undefined;
 };
 
-/** Kimai's begin/end filters match the entry START time, in the account time zone. */
 export function timesheetQuery(filters: TimesheetFilters) {
   return {
     begin: `${filters.from}T00:00:00`,
@@ -60,10 +59,6 @@ export function toEntryView(entry: Timesheet, names?: CatalogNames) {
   };
 }
 
-/**
- * Single-entry endpoints return project and activity as bare IDs. Names are looked up
- * best-effort: a failed lookup must never turn a successful write into a reported failure.
- */
 export async function describeEntry(client: KimaiClient, entry: Timesheet, names: CatalogNames): Promise<EntryView> {
   names.rememberTimesheet(entry);
 
@@ -89,10 +84,6 @@ export async function describeEntry(client: KimaiClient, entry: Timesheet, names
   return toEntryView(entry, names);
 }
 
-/**
- * Fetches every page for the filters, ordered by ID so edits during paging cannot shift
- * entries between pages. Fails rather than returning a partial or inconsistent set.
- */
 export async function fetchAllTimesheets(client: KimaiClient, filters: TimesheetFilters) {
   const query = { ...timesheetQuery(filters), size: PAGE_SIZE, orderBy: "id", order: "ASC" };
   const first = await client.getPage("/timesheets", Timesheet, { ...query, page: 1 });
@@ -143,7 +134,6 @@ export function summarize(entries: Timesheet[], groupBy: GroupBy, names?: Catalo
 
     const seconds = view.durationSeconds;
 
-    // A finished entry without a duration would silently count as zero in a "complete" total.
     if (seconds === null || seconds < 0) {
       throw new KimaiError(
         `Entry #${view.id} has ended but Kimai returned no valid duration, so a complete total cannot be computed.`,

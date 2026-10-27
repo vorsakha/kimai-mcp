@@ -5,7 +5,6 @@ import { loadConfig } from "./config.ts";
 import { KimaiClient } from "./kimai.ts";
 import { createServer } from "./server.ts";
 
-// stdout carries the MCP protocol only; all diagnostics go to stderr.
 try {
   const config = loadConfig(process.env);
   const client = new KimaiClient(config);

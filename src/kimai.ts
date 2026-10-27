@@ -10,13 +10,8 @@ const EXTRA_FIELDS_HINT =
 type Query = Record<string, string | number | boolean | undefined>;
 type WriteMethod = "POST" | "PATCH";
 
-/** A failure with a definite outcome: Kimai answered, or a read never got through. */
 export class KimaiError extends Error {}
 
-/**
- * A write whose outcome is unknown: it was sent, but no usable answer came back.
- * It may have been applied, so it must be checked before anything is retried.
- */
 export class UnknownOutcomeError extends Error {}
 
 export type Page<T> = {
@@ -26,10 +21,6 @@ export type Page<T> = {
   totalPages: number | null;
 };
 
-/**
- * Thin Kimai REST client. It never retries: a repeated read is cheap for the caller to
- * request explicitly, and a repeated write can create duplicates.
- */
 export class KimaiClient {
   readonly #baseUrl: string;
   readonly #apiToken: string;
@@ -57,10 +48,6 @@ export class KimaiClient {
     };
   }
 
-  /**
-   * Sends a write once. Only answers that prove nothing was applied (4xx, or a parsed validation
-   * body) are definite failures; anything else after sending is an unknown outcome.
-   */
   async write<S extends z.ZodType>(
     method: WriteMethod,
     path: string,
@@ -80,7 +67,6 @@ export class KimaiClient {
       );
     }
 
-    // A server or gateway failure can happen after the change was committed.
     if (response.status >= 500) {
       throw new UnknownOutcomeError(
         `${action} failed with HTTP ${response.status}${await this.#describe(response)}. ` +
@@ -166,7 +152,6 @@ export class KimaiClient {
     });
   }
 
-  /** Turns a non-2xx answer into a definite, redacted KimaiError. */
   async #rejectFailure(response: Response, action: string): Promise<void> {
     if (!response.ok) {
       throw new KimaiError(this.#statusMessage(response.status, action, await this.#describe(response)));
@@ -211,7 +196,6 @@ export class KimaiClient {
     }
   }
 
-  /** A short, redacted summary of an error body, prefixed for appending to a message. */
   async #describe(response: Response): Promise<string> {
     const text = await response.text().catch(() => "");
     let details = "";
@@ -219,9 +203,7 @@ export class KimaiClient {
     try {
       const body: unknown = JSON.parse(text);
       details = isValidationBody(body) ? validationDetails(body) : messageOf(body);
-    } catch {
-      // Non-JSON bodies are usually HTML error pages: not useful to the model.
-    }
+    } catch {}
 
     details = this.#redact(details).slice(0, MAX_MESSAGE_LENGTH).replace(/\.$/, "");
 
@@ -270,7 +252,6 @@ function messageOf(body: unknown): string {
   return isRecord(body) && typeof body.message === "string" ? body.message : "";
 }
 
-/** FOSRest form errors: { code, message, errors: { errors?: [...], children: { field: { errors?: [...] } } } } */
 function isValidationBody(body: unknown): body is { errors: unknown } {
   return isRecord(body) && isRecord(body.errors) && !("id" in body);
 }

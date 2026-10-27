@@ -45,8 +45,6 @@ function parseBaseUrl(raw: string): string {
     throw new Error(`KIMAI_BASE_URL "${raw}" is not a valid URL.`);
   }
 
-  // The API token is a bearer credential, so it only travels over HTTPS.
-  // Plain HTTP is accepted for loopback hosts, which is what local test stubs use.
   if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname))) {
     throw new Error("KIMAI_BASE_URL must use https:// (plain http is only allowed for localhost).");
   }

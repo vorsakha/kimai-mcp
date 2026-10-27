@@ -1,7 +1,3 @@
-// Kimai reads and writes wall-clock times ("YYYY-MM-DDTHH:mm:ss", no offset) in the
-// account's time zone. These helpers validate such values against that zone without
-// a date library: a wall-clock time can be valid, missing (DST gap) or ambiguous (DST overlap).
-
 const LOCAL_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 const LOCAL_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -19,7 +15,6 @@ export function isValidTimeZone(timeZone: string): boolean {
   }
 }
 
-/** Validates a calendar date and returns it unchanged. */
 export function parseLocalDate(input: string): string {
   const [, year = "", month = "", day = ""] = LOCAL_DATE.exec(input) ?? [];
 
@@ -30,7 +25,6 @@ export function parseLocalDate(input: string): string {
   return input;
 }
 
-/** Validates a wall-clock time and normalizes it to Kimai's "YYYY-MM-DDTHH:mm:ss" write format. */
 export function parseLocalDateTime(input: string): string {
   const [, year = "", month = "", day = "", hour = "", minute = "", second = "00"] = LOCAL_DATE_TIME.exec(input) ?? [];
 
@@ -49,14 +43,9 @@ export function parseLocalDateTime(input: string): string {
   return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
 }
 
-/**
- * Converts a normalized wall-clock time in `timeZone` to an epoch timestamp.
- * Rejects times skipped by a DST change and times that occur twice, rather than guessing.
- */
 export function localToEpoch(local: string, timeZone: string): number {
   const asUtc = Date.parse(`${local}Z`);
 
-  // Offsets a day before and after cover any single DST transition near this time.
   const offsets = new Set([offsetAt(asUtc - DAY_MS, timeZone), offsetAt(asUtc + DAY_MS, timeZone)]);
   const candidates = [...offsets].map((offset) => asUtc - offset).filter((epoch) => toLocal(epoch, timeZone) === local);
 
@@ -74,7 +63,6 @@ export function localToEpoch(local: string, timeZone: string): number {
   return candidates[0]!;
 }
 
-/** Wall-clock "YYYY-MM-DDTHH:mm:ss" for an instant in `timeZone`. */
 export function toLocal(epoch: number, timeZone: string): string {
   const parts = Object.fromEntries(
     formatterFor(timeZone)

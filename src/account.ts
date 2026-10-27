@@ -7,10 +7,6 @@ export type TimeZoneInfo = {
   source: "kimai-account" | "KIMAI_TIMEZONE";
 };
 
-/**
- * Kimai interprets every datetime we send in the account's time zone, so that zone
- * (not the process zone) drives validation and "now". It is fetched once per process.
- */
 export class Account {
   readonly #client: KimaiClient;
   readonly #configuredTimeZone: string | undefined;
