@@ -65,5 +65,3 @@ npm run typecheck
 npm test
 npm run build
 ```
-
-Licensed under [MIT](LICENSE).
