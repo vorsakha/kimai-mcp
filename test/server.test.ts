@@ -224,6 +224,44 @@ test("summarize_time totals every page by start day and keeps running entries ou
     [5],
   );
 
+  requests = [];
+  const combined = await callJson("summarize_time", {
+    from: "2026-10-19",
+    to: "2026-10-21",
+    groupBy: ["day", "project", "activity"],
+  });
+
+  assert.equal(sent("GET", "/api/timesheets").length, 3, "all groupings share the same three pages");
+  assert.deepEqual(combined.total, { seconds: 19800, hours: 5.5, entries: 4 });
+  assert.deepEqual(
+    combined.groups.day.map((group: { day: string; seconds: number }) => [group.day, group.seconds]),
+    [
+      ["2026-10-19", 12600],
+      ["2026-10-20", 7200],
+    ],
+  );
+  for (const [grouping, id] of [
+    ["project", 1],
+    ["activity", 10],
+  ] as const) {
+    assert.deepEqual(
+      combined.groups[grouping].map(
+        (group: { project?: { id: number }; activity?: { id: number }; seconds: number }) => [
+          group[grouping]?.id,
+          group.seconds,
+        ],
+      ),
+      [
+        [id, 16200],
+        [grouping === "project" ? 2 : 11, 3600],
+      ],
+    );
+  }
+  assert.deepEqual(
+    combined.running.entries.map((running: { id: number }) => running.id),
+    [5],
+  );
+
   // A page set that does not add up to X-Total-Count must fail, never produce partial totals.
   routes["GET /api/timesheets"] = (req, res) => {
     const page = Number(req.query.get("page"));
@@ -342,16 +380,48 @@ test("activities are scoped through readable collections when detail endpoints a
   assert.equal(sent("GET", "/api/projects/99").length, 0);
 });
 
-test("update_timesheet patches only the given fields and names the result via collections", async () => {
+test("entry lookups reuse known names while fetching current entry data", async () => {
+  const listed = entry(
+    900,
+    "2026-10-20T09:00:00-0300",
+    "2026-10-20T10:00:00-0300",
+    3600,
+    { id: 901, name: "Cache project", customer: { id: 903, name: "Cache customer" } },
+    { id: 902, name: "Cache activity" },
+  );
+  routes["GET /api/timesheets"] = (_, res) => json(res, 200, [listed], { "X-Total-Count": "1", "X-Total-Pages": "1" });
+  routes["GET /api/timesheets/900"] = (_, res) =>
+    json(res, 200, { ...listed, project: 901, activity: 902, description: "Updated outside the MCP", duration: 7200 });
+
+  await callJson("list_timesheets", { from: "2026-10-20", to: "2026-10-20" });
+  requests = [];
+  const result = await callJson("list_timesheets", { id: 900 });
+
+  assert.equal(result.entry.description, "Updated outside the MCP");
+  assert.equal(result.entry.durationSeconds, 7200);
+  assert.equal(result.entry.project.name, "Cache project");
+  assert.equal(result.entry.project.customer, "Cache customer");
+  assert.equal(result.entry.activity.name, "Cache activity");
+  assert.equal(sent("GET", "/api/timesheets/900").length, 1);
+  assert.equal(sent("GET", "/api/projects").length, 0, "known project name needs no extra lookup");
+  assert.equal(sent("GET", "/api/activities").length, 0, "known activity name needs no extra lookup");
+});
+
+test("update_timesheet patches only the given fields and resolves the result's names", async () => {
   routes["PATCH /api/timesheets/3"] = (_, res) =>
-    json(res, 200, { ...entries[2], end: "2026-10-20T12:00:00-0300", duration: 10800, project: 1, activity: 10 });
+    json(res, 200, { ...entries[2], end: "2026-10-20T12:00:00-0300", duration: 10800, project: 801, activity: 802 });
+  routes["GET /api/projects"] = (_, res) =>
+    json(res, 200, [{ id: 801, name: "Project X", customer: 5, parentTitle: "Acme" }]);
+  routes["GET /api/activities"] = (_, res) => json(res, 200, [{ id: 802, name: "Development", project: 801 }]);
 
   const result = await callJson("update_timesheet", { id: 3, end: "2026-10-20T12:00" });
 
   assert.deepEqual(sent("PATCH", "/api/timesheets/3")[0]?.body, { end: "2026-10-20T12:00:00" });
   assert.deepEqual(result.changedFields, ["end"]);
-  assert.deepEqual(result.updated.project, { id: 1, name: "Project X", customer: "Acme" });
+  assert.deepEqual(result.updated.project, { id: 801, name: "Project X", customer: "Acme" });
   assert.equal(result.updated.activity.name, "Development");
+  assert.equal(sent("GET", "/api/projects").length, 1, "unknown names still use the accessible collections");
+  assert.equal(sent("GET", "/api/activities").length, 1);
 });
 
 test("start_timer refuses instead of letting Kimai silently stop a running timer", async () => {

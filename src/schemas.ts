@@ -8,6 +8,8 @@ const NamedRef = z.object({
   name: z.string(),
 });
 
+export const GroupBy = z.enum(["day", "project", "activity"]);
+
 export const User = z.object({
   id: z.number(),
   username: z.string(),
@@ -67,3 +69,4 @@ export type TimesheetConfig = z.infer<typeof TimesheetConfig>;
 export type Project = z.infer<typeof Project>;
 export type Activity = z.infer<typeof Activity>;
 export type Timesheet = z.infer<typeof Timesheet>;
+export type GroupBy = z.infer<typeof GroupBy>;

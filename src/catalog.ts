@@ -1,5 +1,67 @@
 import type { KimaiClient } from "./kimai.ts";
-import { Activity, Project } from "./schemas.ts";
+import { Activity, Project, type Timesheet } from "./schemas.ts";
+
+const NAME_TTL_MS = 60_000;
+const MAX_NAMES = 1000;
+
+type DisplayName = { name: string; customer: { name: string } | null };
+
+/** Short-lived display labels, owned by one MCP server. No entry data or access rules are cached. */
+export class CatalogNames {
+  readonly #names = new Map<string, { value: DisplayName; expiresAt: number }>();
+
+  rememberProject(project: Project): void {
+    this.#remember(`project:${project.id}`, {
+      name: project.name,
+      customer: project.parentTitle ? { name: project.parentTitle } : null,
+    });
+  }
+
+  rememberActivity(activity: Activity): void {
+    this.#remember(`activity:${activity.id}`, { name: activity.name, customer: null });
+  }
+
+  rememberTimesheet(entry: Timesheet): void {
+    if (typeof entry.project !== "number") {
+      this.#remember(`project:${entry.project.id}`, {
+        name: entry.project.name,
+        customer: entry.project.customer ? { name: entry.project.customer.name } : null,
+      });
+    }
+
+    if (typeof entry.activity !== "number") {
+      this.#remember(`activity:${entry.activity.id}`, { name: entry.activity.name, customer: null });
+    }
+  }
+
+  project(id: number): DisplayName | undefined {
+    return this.#get(`project:${id}`);
+  }
+
+  activity(id: number): DisplayName | undefined {
+    return this.#get(`activity:${id}`);
+  }
+
+  #get(key: string): DisplayName | undefined {
+    const cached = this.#names.get(key);
+
+    if (!cached || cached.expiresAt <= Date.now()) {
+      this.#names.delete(key);
+      return undefined;
+    }
+
+    return cached.value;
+  }
+
+  #remember(key: string, value: DisplayName): void {
+    this.#names.delete(key);
+    this.#names.set(key, { value, expiresAt: Date.now() + NAME_TTL_MS });
+
+    if (this.#names.size > MAX_NAMES) {
+      this.#names.delete(this.#names.keys().next().value!);
+    }
+  }
+}
 
 // Regular Kimai accounts can read the project and activity collections but get 403 from their
 // detail endpoints (/projects/{id}, /activities/{id}), so every lookup goes through a collection.

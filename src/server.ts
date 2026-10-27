@@ -3,8 +3,8 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { Account } from "./account.ts";
 import { KimaiError, UnknownOutcomeError, type KimaiClient } from "./kimai.ts";
-import { findProject, projectActivities } from "./catalog.ts";
-import { Activity, Project, Timesheet, TimesheetConfig } from "./schemas.ts";
+import { CatalogNames, findProject, projectActivities } from "./catalog.ts";
+import { Activity, GroupBy, Project, Timesheet, TimesheetConfig } from "./schemas.ts";
 import { localToEpoch, parseLocalDate, parseLocalDateTime, TimeInputError, toLocal, weekdayOf } from "./time.ts";
 import { describeEntry, fetchAllTimesheets, RANGE_RULE, summarize, timesheetQuery, toEntryView } from "./timesheets.ts";
 
@@ -23,6 +23,7 @@ const write = { readOnlyHint: false, destructiveHint: false, idempotentHint: fal
 class ToolInputError extends Error {}
 
 export function createServer(client: KimaiClient, account: Account): McpServer {
+  const names = new CatalogNames();
   const server = new McpServer(
     { name: "kimai-mcp", version: "0.1.0" },
     {
@@ -30,7 +31,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         "Use get_context to resolve relative dates in the Kimai account's time zone.",
         "Resolve project and activity names to IDs with list_projects and list_activities before writing entries.",
         "Ask the user when a project, activity, date, or existing entry is ambiguous; do not guess.",
-        "Use summarize_time for totals; list_timesheets returns one page at a time.",
+        "Use summarize_time for totals and request multiple groupings together; list_timesheets returns one page at a time.",
         "After UNKNOWN OUTCOME, inspect list_timesheets or get_context before retrying: the write may have succeeded.",
       ].join("\n"),
     },
@@ -60,9 +61,9 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         timeZone,
         now: { local: now, date: now.slice(0, 10), weekday: weekdayOf(now) },
         trackingRules: config,
-        activeTimers: active.map((entry) => toEntryView(entry)),
+        activeTimers: active.map((entry) => toEntryView(entry, names)),
         recentCombinations: recent.map((entry) => {
-          const view = toEntryView(entry);
+          const view = toEntryView(entry, names);
 
           return {
             project: view.project,
@@ -93,6 +94,10 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
       const projects = await client.get("/projects", Project.array(), { term: term || undefined, customer });
       // Kimai silently drops an unknown customer filter, so enforce it here as well.
       const matches = projects.filter((project) => customer === undefined || project.customer === customer);
+
+      for (const project of projects) {
+        names.rememberProject(project);
+      }
 
       return {
         totalMatches: matches.length,
@@ -133,6 +138,14 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         ? await projectActivities(client, project, query)
         : await client.get("/activities", Activity.array(), query);
 
+      if (project) {
+        names.rememberProject(project);
+      }
+
+      for (const activity of activities) {
+        names.rememberActivity(activity);
+      }
+
       return {
         project: project
           ? { id: project.id, name: project.name, globalActivities: project.globalActivities ?? null }
@@ -170,7 +183,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
     },
     run(async ({ id: entryId, page, size, ...filters }) => {
       if (entryId !== undefined) {
-        return { entry: await describeEntry(client, await client.get(`/timesheets/${entryId}`, Timesheet)) };
+        return { entry: await describeEntry(client, await client.get(`/timesheets/${entryId}`, Timesheet), names) };
       }
 
       const range = dateRange(filters.from, filters.to);
@@ -189,7 +202,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
           totalPages: result.totalPages,
           hasMore: result.totalPages === null ? result.items.length === size : page < result.totalPages,
         },
-        entries: result.items.map((entry) => toEntryView(entry)),
+        entries: result.items.map((entry) => toEntryView(entry, names)),
       };
     }),
   );
@@ -199,12 +212,12 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
     {
       title: "Summarize hours",
       description:
-        "Total tracked time for a date range, grouped by day, project or activity. Reads every page and fails " +
-        "instead of returning partial totals. Running timers are listed separately and excluded from totals.",
+        "Total tracked time for a date range. Pass one groupBy for a groups array, or several for groups keyed " +
+        "by grouping. All groupings share one complete fetch. Running timers are excluded from totals.",
       inputSchema: {
         from: localDate,
         to: localDate,
-        groupBy: z.enum(["day", "project", "activity"]).default("day"),
+        groupBy: GroupBy.or(GroupBy.array().min(1).max(3)).default("day"),
         project: id.optional(),
         activity: id.optional(),
         term: z.string().optional(),
@@ -217,6 +230,9 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         account.timeZone(),
         fetchAllTimesheets(client, { ...filters, ...range }),
       ]);
+      const groupings = typeof groupBy === "string" ? [groupBy] : [...new Set(groupBy)];
+      const summaries = groupings.map((by) => ({ by, result: summarize(entries, by, names) }));
+      const summary = summaries[0]!.result;
 
       return {
         scope: {
@@ -228,8 +244,12 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         },
         complete: true,
         pagesFetched,
-        groupBy,
-        ...summarize(entries, groupBy),
+        ...summary,
+        groupBy: typeof groupBy === "string" ? groupBy : groupings,
+        groups:
+          typeof groupBy === "string"
+            ? summary.groups
+            : Object.fromEntries(summaries.map(({ by, result }) => [by, result.groups])),
       };
     }),
   );
@@ -262,7 +282,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         { full: "true" },
       );
 
-      return { created: toEntryView(created) };
+      return { created: toEntryView(created, names) };
     }),
   );
 
@@ -294,7 +314,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
 
       const updated = await client.write("PATCH", `/timesheets/${entryId}`, Timesheet, changes);
 
-      return { updated: await describeEntry(client, updated), changedFields: Object.keys(changes) };
+      return { updated: await describeEntry(client, updated, names), changedFields: Object.keys(changes) };
     }),
   );
 
@@ -319,7 +339,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
         client.get("/config/timesheet", TimesheetConfig),
         client.get("/timesheets/active", Timesheet.array()),
       ]);
-      const running = active.map((entry) => toEntryView(entry));
+      const running = active.map((entry) => toEntryView(entry, names));
 
       if (running.length >= config.activeEntriesHardLimit) {
         throw new ToolInputError(
@@ -331,7 +351,7 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
 
       const started = await client.write("POST", "/timesheets", Timesheet, entryFields(input), { full: "true" });
 
-      return { started: toEntryView(started), otherRunningTimers: running };
+      return { started: toEntryView(started, names), otherRunningTimers: running };
     }),
   );
 
@@ -348,12 +368,12 @@ export function createServer(client: KimaiClient, account: Account): McpServer {
       const current = await client.get(`/timesheets/${entryId}`, Timesheet);
 
       if (current.end) {
-        return { alreadyStopped: true, entry: await describeEntry(client, current) };
+        return { alreadyStopped: true, entry: await describeEntry(client, current, names) };
       }
 
       const stopped = await client.write("PATCH", `/timesheets/${entryId}/stop`, Timesheet);
 
-      return { stopped: await describeEntry(client, stopped) };
+      return { stopped: await describeEntry(client, stopped, names) };
     }),
   );
 

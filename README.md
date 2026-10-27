@@ -44,7 +44,7 @@ You can also supply the environment variables directly through your MCP client.
 ## Try it
 
 - "Log yesterday from 09:00 to 11:30 on Project X, development, working on CODE-123."
-- "Show my hours this week by project."
+- "Show my hours this week by day, project, and activity."
 - "Change yesterday's CODE-123 entry to end at noon."
 - "Start a timer for Project X."
 

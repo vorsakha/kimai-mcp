@@ -1,6 +1,6 @@
 import { KimaiError, type KimaiClient } from "./kimai.ts";
-import { findProject, projectActivities } from "./catalog.ts";
-import { Timesheet } from "./schemas.ts";
+import { CatalogNames, findProject, projectActivities } from "./catalog.ts";
+import { Timesheet, type GroupBy } from "./schemas.ts";
 
 const PAGE_SIZE = 500;
 const MAX_SUMMARY_ENTRIES = 5000;
@@ -31,9 +31,11 @@ export const RANGE_RULE =
   "Includes entries whose START is between from 00:00:00 and to 23:59:59 in the account time zone. " +
   "An entry crossing midnight belongs entirely to its start day.";
 
-export function toEntryView(entry: Timesheet, names: ResolvedNames = {}) {
-  const project = typeof entry.project === "number" ? names.project : entry.project;
-  const activity = typeof entry.activity === "number" ? names.activity : entry.activity;
+export function toEntryView(entry: Timesheet, names?: CatalogNames) {
+  names?.rememberTimesheet(entry);
+
+  const project = typeof entry.project === "number" ? names?.project(entry.project) : entry.project;
+  const activity = typeof entry.activity === "number" ? names?.activity(entry.activity) : entry.activity;
   const running = !entry.end;
 
   return {
@@ -58,28 +60,33 @@ export function toEntryView(entry: Timesheet, names: ResolvedNames = {}) {
   };
 }
 
-type ResolvedNames = {
-  project?: { name: string; customer: { name: string } | null } | undefined;
-  activity?: { name: string } | undefined;
-};
-
 /**
  * Single-entry endpoints return project and activity as bare IDs. Names are looked up
  * best-effort: a failed lookup must never turn a successful write into a reported failure.
  */
-export async function describeEntry(client: KimaiClient, entry: Timesheet): Promise<EntryView> {
-  if (typeof entry.project !== "number" || typeof entry.activity !== "number") {
-    return toEntryView(entry);
+export async function describeEntry(client: KimaiClient, entry: Timesheet, names: CatalogNames): Promise<EntryView> {
+  names.rememberTimesheet(entry);
+
+  const projectId = typeof entry.project === "number" ? entry.project : entry.project.id;
+  const activityId = typeof entry.activity === "number" ? entry.activity : entry.activity.id;
+
+  if (!names.project(projectId) || !names.activity(activityId)) {
+    const project = await findProject(client, projectId).catch(() => undefined);
+
+    if (project) {
+      names.rememberProject(project);
+
+      if (!names.activity(activityId)) {
+        const activities = await projectActivities(client, project, { visible: 3 }).catch(() => []);
+
+        for (const activity of activities) {
+          names.rememberActivity(activity);
+        }
+      }
+    }
   }
 
-  const activityId = entry.activity;
-  const project = await findProject(client, entry.project).catch(() => undefined);
-  const activities = project ? await projectActivities(client, project, { visible: 3 }).catch(() => []) : [];
-
-  return toEntryView(entry, {
-    project: project && { name: project.name, customer: project.parentTitle ? { name: project.parentTitle } : null },
-    activity: activities.find((activity) => activity.id === activityId),
-  });
+  return toEntryView(entry, names);
 }
 
 /**
@@ -121,15 +128,13 @@ export async function fetchAllTimesheets(client: KimaiClient, filters: Timesheet
   return { entries, pagesFetched: Math.max(totalPages, 1) };
 }
 
-export type GroupBy = "day" | "project" | "activity";
-
-export function summarize(entries: Timesheet[], groupBy: GroupBy) {
+export function summarize(entries: Timesheet[], groupBy: GroupBy, names?: CatalogNames) {
   const groups = new Map<string, { label: Record<string, unknown>; seconds: number; entries: number }>();
   const running: EntryView[] = [];
   let totalSeconds = 0;
 
   for (const entry of entries) {
-    const view = toEntryView(entry);
+    const view = toEntryView(entry, names);
 
     if (view.running) {
       running.push(view);
