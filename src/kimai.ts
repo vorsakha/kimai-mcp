@@ -179,6 +179,7 @@ export class KimaiClient {
 
         return `Kimai rejected ${action} (HTTP 400)${details}.${hint}`;
       }
+
       case 401:
         return (
           "Kimai rejected the API token (HTTP 401). " +
@@ -203,7 +204,9 @@ export class KimaiClient {
     try {
       const body: unknown = JSON.parse(text);
       details = isValidationBody(body) ? validationDetails(body) : messageOf(body);
-    } catch {}
+    } catch {
+      // Non-JSON error bodies have no structured details to include.
+    }
 
     details = this.#redact(details).slice(0, MAX_MESSAGE_LENGTH).replace(/\.$/, "");
 

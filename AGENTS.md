@@ -21,7 +21,19 @@
 
 - When handling credentials, keep secrets out of tracked files and logs.
 
+## Readability
+
+- Separate logical phases with one blank line; keep closely related statements together.
+- Always use braces for control flow. Avoid nested ternaries and dense expressions; use clear intermediate names.
+- Review readability separately from correctness. Do not introduce helpers or abstractions merely to satisfy size limits.
+- Use `npm run lint:fix` for automatic lint fixes, then `npm run format`.
+
+## Tooling
+
+- Build and typecheck scripts select TypeScript 7 explicitly through the `@typescript/native` npm alias.
+- Keep the separate `typescript` dependency on 6.0.x for the API required by typescript-eslint.
+
 ## Validation
 
-- When validating changes, run relevant offline checks: `npm run typecheck`, `npm test`, `npm run format:check`.
+- When validating changes, run relevant offline checks: `npm run typecheck`, `npm test`, `npm run format:check`, `npm run lint`, `npm run build`.
 - When running tests, enforce memory, CPU, and time limits for the whole process tree. Live API calls require an explicit request.

@@ -62,6 +62,8 @@ You can also supply the environment variables directly through your MCP client.
 
 ```sh
 npm run typecheck
+npm run format:check
+npm run lint
 npm test
 npm run build
 ```

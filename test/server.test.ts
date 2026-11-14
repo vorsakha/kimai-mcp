@@ -251,6 +251,7 @@ test("summarize_time totals every page by start day and keeps running entries ou
       ],
     );
   }
+
   assert.deepEqual(
     combined.running.entries.map((running: { id: number }) => running.id),
     [5],
